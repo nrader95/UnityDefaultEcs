@@ -60,7 +60,7 @@ namespace DefaultEcs
         public World World => World.Worlds[WorldId];
 
         /// <summary>
-        /// Gets whether the current <see cref="Entity"/> is alive or not.
+        /// Gets whether the current <see cref="Entity"/> is valid (i.e. not disposed and properly created from existing world) or not.
         /// </summary>
         /// <returns>true if the <see cref="Entity"/> is alive; otherwise, false.</returns>
         [DebuggerBrowsable(DebuggerBrowsableState.Never)]
@@ -286,6 +286,18 @@ namespace DefaultEcs
             {
                 previousPool.Set(EntityId, Get<T>());
             }
+        }
+
+        /// <summary>
+        /// Returns whether the current <see cref="Entity"/> version copy is alive. This method is faster and less safe version of <see cref="Entity.IsAlive"/> <para/>
+        /// Use it when know for sure that entity was valid previously (i.e. it was created from existing world and used before)
+        /// </summary>
+        /// <returns>true if the given <see cref="Entity"/> copy is latest(alive) version; otherwise, false.</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public readonly bool IsAliveVersion()
+        {
+            var entityInfo = World.EntityInfos[EntityId];
+            return Version == entityInfo.Version;
         }
 
         /// <summary>
