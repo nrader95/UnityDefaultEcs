@@ -14,7 +14,6 @@ DefaultEcs is an [Entity Component System](https://en.wikipedia.org/wiki/Entity_
 
 - [Requirements](#requirements)
 - [Versioning](#versioning)
-- [Analyzer](#analyzer)
 - [Overview](#overview)
   - [World](#world)
     - [Message](#message)
@@ -44,8 +43,6 @@ DefaultEcs is an [Entity Component System](https://en.wikipedia.org/wiki/Entity_
   - [Serialization](#serialization)
     - [TextSerializer](#textserializer)
     - [BinarySerializer](#binaryserializer)
-- [Extension](#extension)
-- [Sample](#sample)
 - [Projects using DefaultEcs](#projects-using-defaultecs)
 - [Dependencies](#dependencies)
 
@@ -59,9 +56,6 @@ This is the current strategy used to version DefaultEcs: v0.major.minor
 - 0: DefaultEcs is still in heavy development and although a lot of care is given not to break the current API, it can still happen
 - major: incremented when there is a breaking change (reset minor number)
 - minor: incremented when there is a new feature or a bug fix
-
-# Analyzer
-To help development with DefaultEcs, there is a roslyn analyzer which provides code generation and warnings against potential bad usage. It can be found [here](https://github.com/Doraku/DefaultEcs.Analyzer).
 
 # Overview
 ## World
@@ -739,37 +733,6 @@ ComponentSameAs Test Foo
 ```
 ### BinarySerializer
 This serializer is optimized for speed and file size.
-
-# Extension
-A DefaultEcs.Extension project is present to show how other features can be built upon the base framework. Those features are just provided as example and are not part of DefaultEcs because the implementation is not generic nor satisfactory enough.
-- [Children](https://github.com/Doraku/DefaultEcs/blob/master/source/DefaultEcs.Extension/Children/EntityExtension.cs) makes it so entities can be linked together and disposing the parent will also dispose its children
-- [Hierarchy](https://github.com/Doraku/DefaultEcs/tree/master/source/DefaultEcs.Extension/Hierarchy) shows an example on how to create a hierarchy level between entities so parents are processed before their children
-
-# Sample
-Some sample projects are available to paint a better picture on how to use DefaultEcs. Those examples were done relatively fast so they might not be an adequate representation of what an Entity Component System framework application might look like.
-
-[DefaultBoids](https://github.com/Doraku/DefaultEcs/tree/master/source/Sample/DefaultBoids)
-
-[![DefaultBoids](https://img.youtube.com/vi/yEdcqOTCteY/0.jpg)](https://youtu.be/yEdcqOTCteY)
-
-A really simple implementation of a [boids simulation](https://en.wikipedia.org/wiki/Boids), here displaying 30k boids with an old Intel Core i5-3570K CPU 3.40GHz at ~70fps.  
-This project uses code generation from [DefaultEcs.Analyzer](https://github.com/Doraku/DefaultEcs.Analyzer) for its systems where possible.
-
-[DefaultBrick](https://github.com/Doraku/DefaultEcs/tree/master/source/Sample/DefaultBrick)
-[win10-x64](https://github.com/Doraku/DefaultEcs/releases/download/v0.9.0/DefaultBrick_win10-x64.zip)
-
-![](https://github.com/Doraku/DefaultEcs/raw/master/image/defaultbrick.gif)
-
-Basic breakout clone. The collision is buggy! As said before, not much time was spent debugging those. Ball moves faster the more bricks you destroy and resets to default speed if you lose. The stage reloads once completed.  
-This project does not use attributes for system queries, everything is statically declared.
-
-[DefaultSlap](https://github.com/Doraku/DefaultEcs/tree/master/source/Sample/DefaultSlap)
-[win10-x64](https://github.com/Doraku/DefaultEcs/releases/download/v0.9.0/DefaultSlap_win10-x64.zip)
-
-![](https://github.com/Doraku/DefaultEcs/raw/master/image/defaultslap.gif)
-
-Basic fly swatter clone. Every five seconds flies (blue squares) will damage the player (up to 3 times until the "game" resets) and new ones will spawn.  
-This project uses attributes for system queries.
 
 # Projects using DefaultEcs
 Does your game use DefaultEcs? Don't hesitate to contact me.  
