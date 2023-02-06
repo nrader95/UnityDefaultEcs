@@ -43,7 +43,7 @@ DefaultEcs is an [Entity Component System](https://en.wikipedia.org/wiki/Entity_
   - [Serialization](#serialization)
     - [TextSerializer](#textserializer)
     - [BinarySerializer](#binaryserializer)
-- [Projects using DefaultEcs](#projects-using-defaultecs)
+  - [Tips](#tips)
 - [Dependencies](#dependencies)
 
 # Requirements
@@ -124,12 +124,17 @@ entity.Dispose();
 
 Once disposed, you should not use the entity again. If you need a safeguard, you can check the `IsAlive` property:
 ```csharp
-#if DEBUG
 if (!entity.IsAlive)
 {
     // something is wrong
 }
-#endif
+```
+There is faster alternative to IsAlive property:
+```csharp
+if (!entity.IsAliveVersion())
+{
+    // make sure to only use this if you are sure entity was at least valid before.
+}
 ```
 
 You can also make an entity act as if it was disposed so it is removed from world queries while keeping all its components, this is useful when you need to activate/deactivate an entity from your game logic:
@@ -305,6 +310,7 @@ entity.Set(ManagedResource<Texture2D>.Create("square.png", "circle.png")); // se
 textureResourceManager.Manage(_world);
 ```
 This feature only cares for entity components, not the world components.
+Also, this is intended mostly for init, so keep it in mind before trying to use it in any non-init systems as the performance might not be the best.
 
 ## Query
 To perform operations, systems should query entities from the world. This is performed by requesting entities through the world and using the fluent API to create rules
@@ -734,10 +740,28 @@ ComponentSameAs Test Foo
 ### BinarySerializer
 This serializer is optimized for speed and file size.
 
-# Projects using DefaultEcs
-Does your game use DefaultEcs? Don't hesitate to contact me.  
+## Tips
+Make sure you use buffering on system if you are changing components that are part of system query:
+```csharp
+[With(typeof(ComponentOne)]
+[With(typeof(ComponentTwo)]
+public sealed class SomeSystem : AEntitySetSystem<float>
+{
+    public VelocitySystem(World world) : base(world, useBuffer: false) { }
 
-[![Chambers of Anubis](https://img.itch.zone/aW1nLzQ2MDYzODcucG5n/original/IALw4S.png)](https://github.com/PodeCaradox/HellowIInJam)
+    protected override void Update(float elapsedTime, in Entity entity)
+    {
+        entity.Remove<ComponentThree>(); // this one is fine, since its type is not part of system query
+
+        entity.Remove<ComponentOne>(); // and this one is not        
+        // now that our entity no longer has the ComponentOne, inner EntitySet will auto-update
+        // that means entity variable will change too, as thats a reference to one from inner set
+        // enjoy bugs appear in the totally unrelated systems if you do so
+
+        ref var two = ref entity.Get<ComponentTwo>(); // entity is different
+    }
+}
+```
 
 # Dependencies
 CI, tests and code quality rely on these awesome projects:
