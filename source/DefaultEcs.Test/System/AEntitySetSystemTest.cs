@@ -22,14 +22,6 @@ namespace DefaultEcs.Test.System
                 : base(set)
             { }
 
-            public System(World world, Func<object, World, EntitySet> factory)
-                : base(world, factory, null, 0)
-            { }
-
-            public System(World world, Func<object, World, EntitySet> factory, bool useBuffer)
-                : base(world, factory, useBuffer)
-            { }
-
             public System(World world)
                 : base(world)
             { }
@@ -94,21 +86,6 @@ namespace DefaultEcs.Test.System
             .ThatCode(() => new System(default(World)))
             .Throws<ArgumentNullException>()
             .WithProperty(e => e.ParamName, "world");
-
-        [Fact]
-        public void AEntitySetSystem_Should_throw_ArgumentNullException_When_factory_is_null()
-        {
-            using World world = new();
-
-            Check
-                .ThatCode(() => new System(world, default(Func<object, World, EntitySet>)))
-                .Throws<ArgumentNullException>()
-                .WithProperty(e => e.ParamName, "factory");
-            Check
-                .ThatCode(() => new System(world, default, true))
-                .Throws<ArgumentNullException>()
-                .WithProperty(e => e.ParamName, "factory");
-        }
 
         [Fact]
         public void World_Should_return_parent_world()
@@ -387,7 +364,7 @@ namespace DefaultEcs.Test.System
             Entity entity4 = world.CreateEntity();
             entity4.Set<bool>();
 
-            using (ISystem<int> system = new System(world, (_, w) => w.GetEntities().With<bool>().AsSet(), true)
+            using (ISystem<int> system = new System(world.GetEntities().With<bool>().AsSet(), true)
             {
                 IsEnabled = false
             })

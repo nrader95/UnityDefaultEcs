@@ -19,12 +19,8 @@ namespace DefaultEcs.Test.System
                 : base(map)
             { }
 
-            public System(World world, Func<object, World, EntityMultiMap<T>> factory)
-                : base(world, factory, null, 0)
-            { }
-
-            public System(World world, Func<object, World, EntityMultiMap<T>> factory, bool useBuffer)
-                : base(world, factory, useBuffer)
+            public System(EntityMultiMap<T> map, bool useBuffer)
+                : base(map, useBuffer)
             { }
 
             public System(World world)
@@ -88,28 +84,13 @@ namespace DefaultEcs.Test.System
         public void AEntityMultiMapSystem_Should_throw_ArgumentNullException_When_map_is_null() => Check
             .ThatCode(() => new System<int>(default(EntityMultiMap<int>)))
             .Throws<ArgumentNullException>()
-            .WithProperty(e => e.ParamName, "map");
+            .WithProperty(e => e.ParamName, "multiMap");
 
         [Fact]
         public void AEntityMultiMapSystem_Should_throw_ArgumentNullException_When_World_is_null() => Check
             .ThatCode(() => new System<int>(default(World)))
             .Throws<ArgumentNullException>()
             .WithProperty(e => e.ParamName, "world");
-
-        [Fact]
-        public void AEntityMultiMapSystem_Should_throw_ArgumentNullException_When_factory_is_null()
-        {
-            using World world = new();
-
-            Check
-                .ThatCode(() => new System<int>(world, default(Func<object, World, EntityMultiMap<int>>)))
-                .Throws<ArgumentNullException>()
-                .WithProperty(e => e.ParamName, "factory");
-            Check
-                .ThatCode(() => new System<int>(world, default, true))
-                .Throws<ArgumentNullException>()
-                .WithProperty(e => e.ParamName, "factory");
-        }
 
         [Fact]
         public void World_Should_return_parent_world()
@@ -190,7 +171,7 @@ namespace DefaultEcs.Test.System
             entity4.Set<bool>();
             entity4.Set(1);
 
-            using System<int> system = new(world, (_, w) => w.GetEntities().With<bool>().AsMultiMap<int>(), true);
+            using System<int> system = new(world.GetEntities().With<bool>().AsMultiMap<int>(), true);
 
             system.Update(0);
 

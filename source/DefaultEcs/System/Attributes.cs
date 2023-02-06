@@ -10,14 +10,6 @@ namespace DefaultEcs.System
     { }
 
     /// <summary>
-    /// Makes so when building the inner EntitySet of <see cref="AEntitySetSystem{T}"/> when giving a <see cref="World"/> instance, the decorated method will be used as a component predicate.
-    /// The decorated method should be of the type <see cref="ComponentPredicate{T}"/>.
-    /// </summary>
-    [AttributeUsage(AttributeTargets.Method)]
-    public sealed class WithPredicateAttribute : Attribute
-    { }
-
-    /// <summary>
     /// Specifies which filter rule should be applied when using a <see cref="ComponentAttribute"/>.
     /// </summary>
     public enum ComponentFilterType
@@ -97,6 +89,9 @@ namespace DefaultEcs.System
         /// <param name="componentTypes">The types of the component.</param>
         public ComponentAttribute(ComponentFilterType filterType, params Type[] componentTypes)
         {
+            if (!Enum.IsDefined(typeof(ComponentFilterType), filterType)) {
+                throw new ArgumentException(nameof(filterType));
+            }
             ComponentTypes = componentTypes.ThrowIfNull();
             FilterType = filterType;
         }

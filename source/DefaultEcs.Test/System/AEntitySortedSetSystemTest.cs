@@ -15,10 +15,6 @@ namespace DefaultEcs.Test.System
                 : base(sortedSet, useBuffer)
             { }
 
-            public System(World world, Func<object, World, EntitySortedSet<int>> factory, bool useBuffer = false)
-                : base(world, factory, useBuffer)
-            { }
-
             public System(World world)
                 : base(world)
             { }
@@ -44,21 +40,6 @@ namespace DefaultEcs.Test.System
             .ThatCode(() => new System(default))
             .Throws<ArgumentNullException>()
             .WithProperty(e => e.ParamName, "world");
-
-        [Fact]
-        public void AEntitySetSystem_Should_throw_ArgumentNullException_When_factory_is_null()
-        {
-            using World world = new();
-
-            Check
-                .ThatCode(() => new System(world, default))
-                .Throws<ArgumentNullException>()
-                .WithProperty(e => e.ParamName, "factory");
-            Check
-                .ThatCode(() => new System(world, default, true))
-                .Throws<ArgumentNullException>()
-                .WithProperty(e => e.ParamName, "factory");
-        }
 
         [Fact]
         public void World_Should_return_parent_world()
@@ -156,7 +137,7 @@ namespace DefaultEcs.Test.System
             entity4.Set<bool>();
             entity4.Set(3);
 
-            using (ISystem<int> system = new System(world, (_, w) => w.GetEntities().With<bool>().AsSortedSet<int>(), true)
+            using (ISystem<int> system = new System(world.GetEntities().With<bool>().AsSortedSet<int>(), true)
             {
                 IsEnabled = false
             })

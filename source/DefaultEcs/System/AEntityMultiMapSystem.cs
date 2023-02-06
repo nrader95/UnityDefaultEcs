@@ -72,31 +72,43 @@ namespace DefaultEcs.System
 
         #region Initialisation
 
-        private AEntityMultiMapSystem(Func<object, EntityMultiMap<TKey>> factory, IParallelRunner runner, int minEntityCountByRunnerIndex)
+        private static bool IsIComparable()
         {
-            static bool IsIComparable()
+            TypeInfo type = typeof(TKey).GetTypeInfo();
+            if (typeof(IComparable<TKey>).GetTypeInfo().IsAssignableFrom(type))
             {
-                TypeInfo type = typeof(TKey).GetTypeInfo();
-                if (typeof(IComparable<TKey>).GetTypeInfo().IsAssignableFrom(type))
+                return true;
+            }
+            if (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(Nullable<>))
+            {
+                TypeInfo innerType = type.GenericTypeArguments[0].GetTypeInfo();
+                if (typeof(IComparable<>).MakeGenericType(innerType.AsType()).GetTypeInfo().IsAssignableFrom(innerType))
                 {
                     return true;
                 }
-                if (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(Nullable<>))
-                {
-                    TypeInfo innerType = type.GenericTypeArguments[0].GetTypeInfo();
-                    if (typeof(IComparable<>).MakeGenericType(innerType.AsType()).GetTypeInfo().IsAssignableFrom(innerType))
-                    {
-                        return true;
-                    }
-                }
-
-                return false;
             }
 
-            MultiMap = factory(this);
-            World = MultiMap.World;
+            return false;
+        }
 
-            _keyComparer = this as IComparer<TKey> ?? (IsIComparable() ? Comparer<TKey>.Default : null);
+        /// <summary>
+        /// Initialise a new instance of the <see cref="AEntityMultiMapSystem{T, TKey}"/> class with the given <see cref="EntityMultiMap{TKey}"/> and <see cref="IParallelRunner"/>.
+        /// </summary>
+        /// <param name="multiMap">The <see cref="EntityMultiMap{TKey}"/> on which to process the update.</param>
+        /// <param name="runner">The <see cref="IParallelRunner"/> used to process the update in parallel if not null.</param>
+        /// <param name="minEntityCountByRunnerIndex">The minimum number of <see cref="Entity"/> per runner index to use the given <paramref name="runner"/>.</param>
+        /// <exception cref="ArgumentNullException"><paramref name="multiMap"/> is null.</exception>
+        protected AEntityMultiMapSystem(EntityMultiMap<TKey> multiMap, IParallelRunner runner, int minEntityCountByRunnerIndex = 0)
+        {
+            if (multiMap is null)
+            {
+                throw new ArgumentNullException(nameof(multiMap));
+            }
+
+            MultiMap = multiMap;
+            World = multiMap.World;
+
+            _keyComparer = (this as IComparer<TKey>) ?? (IsIComparable() ? Comparer<TKey>.Default : null);
             _runner = runner ?? DefaultParallelRunner.Default;
             _runnable = new Runnable(this);
             _minEntityCountByRunnerIndex = _runner.DegreeOfParallelism > 1 ? minEntityCountByRunnerIndex : int.MaxValue;
@@ -106,41 +118,18 @@ namespace DefaultEcs.System
         }
 
         /// <summary>
-        /// Initialise a new instance of the <see cref="AEntityMultiMapSystem{T, TKey}"/> class with the given <see cref="EntityMultiMap{TKey}"/> and <see cref="IParallelRunner"/>.
-        /// </summary>
-        /// <param name="map">The <see cref="EntityMultiMap{TKey}"/> on which to process the update.</param>
-        /// <param name="runner">The <see cref="IParallelRunner"/> used to process the update in parallel if not null.</param>
-        /// <param name="minEntityCountByRunnerIndex">The minimum number of <see cref="Entity"/> per runner index to use the given <paramref name="runner"/>.</param>
-        /// <exception cref="ArgumentNullException"><paramref name="map"/> is null.</exception>
-        protected AEntityMultiMapSystem(EntityMultiMap<TKey> map, IParallelRunner runner, int minEntityCountByRunnerIndex = 0)
-            : this(map is null ? throw new ArgumentNullException(nameof(map)) : _ => map, runner, minEntityCountByRunnerIndex)
-        { }
-
-        /// <summary>
         /// Initialise a new instance of the <see cref="AEntityMultiMapSystem{T, TKey}"/> class with the given <see cref="EntityMultiMap{TKey}"/>.
         /// </summary>
         /// <param name="map">The <see cref="EntityMultiMap{TKey}"/> on which to process the update.</param>
-        /// <param name="useBuffer">Whether the entities should be copied before being processed.</param>
+        /// <param name="useBuffer">
+        /// Whether the entities should be copied before being processed. <para/>
+        /// Turning it off gets better results, but is NOT safe for disposing entities, or Set/Remove/Enable/Disable components that are part of inner EntitySet
+        /// </param>
         /// <exception cref="ArgumentNullException"><paramref name="map"/> is null.</exception>
-        protected AEntityMultiMapSystem(EntityMultiMap<TKey> map, bool useBuffer = false)
-            : this(map, null)
+        protected AEntityMultiMapSystem(EntityMultiMap<TKey> map, bool useBuffer = true) : this(map, null)
         {
             _useBuffer = useBuffer;
         }
-
-        /// <summary>
-        /// Initialise a new instance of the <see cref="AEntityMultiMapSystem{T, TKey}"/> class with the given <see cref="DefaultEcs.World"/> and factory.
-        /// The current instance will be passed as the first parameter of the factory.
-        /// </summary>
-        /// <param name="world">The <see cref="DefaultEcs.World"/> from which to get the <see cref="Entity"/> instances to process the update.</param>
-        /// <param name="factory">The factory used to create the <see cref="EntityMultiMap{TKey}"/>.</param>
-        /// <param name="runner">The <see cref="IParallelRunner"/> used to process the update in parallel if not null.</param>
-        /// <param name="minEntityCountByRunnerIndex">The minimum number of <see cref="Entity"/> per runner index to use the given <paramref name="runner"/>.</param>
-        /// <exception cref="ArgumentNullException"><paramref name="world"/> is null.</exception>
-        /// <exception cref="ArgumentNullException"><paramref name="factory"/> is null.</exception>
-        protected AEntityMultiMapSystem(World world, Func<object, World, EntityMultiMap<TKey>> factory, IParallelRunner runner, int minEntityCountByRunnerIndex)
-            : this(world is null ? throw new ArgumentNullException(nameof(world)) : factory is null ? throw new ArgumentNullException(nameof(factory)) : o => factory(o, world), runner, minEntityCountByRunnerIndex)
-        { }
 
         /// <summary>
         /// Initialise a new instance of the <see cref="AEntityMultiMapSystem{T, TKey}"/> class with the given <see cref="DefaultEcs.World"/>.
@@ -151,22 +140,24 @@ namespace DefaultEcs.System
         /// <param name="minEntityCountByRunnerIndex">The minimum number of <see cref="Entity"/> per runner index to use the given <paramref name="runner"/>.</param>
         /// <exception cref="ArgumentNullException"><paramref name="world"/> is null.</exception>
         protected AEntityMultiMapSystem(World world, IParallelRunner runner, int minEntityCountByRunnerIndex = 0)
-            : this(world, DefaultFactory, runner, minEntityCountByRunnerIndex)
-        { }
-
-        /// <summary>
-        /// Initialise a new instance of the <see cref="AEntityMultiMapSystem{T,TKey}"/> class with the given <see cref="DefaultEcs.World"/>.
-        /// To create the inner <see cref="EntityMultiMap{TKey}"/>, <see cref="WithAttribute"/> and <see cref="WithoutAttribute"/> attributes will be used.
-        /// </summary>
-        /// <param name="world">The <see cref="DefaultEcs.World"/> from which to get the <see cref="Entity"/> instances to process the update.</param>
-        /// <param name="factory">The factory used to create the <see cref="EntitySet"/>.</param>
-        /// <param name="useBuffer">Whether the entities should be copied before being processed.</param>
-        /// <exception cref="ArgumentNullException"><paramref name="world"/> is null.</exception>
-        /// <exception cref="ArgumentNullException"><paramref name="factory"/> is null.</exception>
-        protected AEntityMultiMapSystem(World world, Func<object, World, EntityMultiMap<TKey>> factory, bool useBuffer)
-            : this(world, factory, null, 0)
         {
-            _useBuffer = useBuffer;
+            if (world is null)
+            {
+                throw new ArgumentNullException(nameof(world));
+            }
+
+            var setBuilder = EntityRuleBuilder.GetSystemQueryBuilder(world, this.GetType());
+
+            MultiMap = setBuilder.AsMultiMap<TKey>();
+            World = MultiMap.World;
+
+            _keyComparer = (this as IComparer<TKey>) ?? (IsIComparable() ? Comparer<TKey>.Default : null);
+            _runner = runner ?? DefaultParallelRunner.Default;
+            _runnable = new Runnable(this);
+            _minEntityCountByRunnerIndex = _runner.DegreeOfParallelism > 1 ? minEntityCountByRunnerIndex : int.MaxValue;
+
+            _keys = EmptyArray<TKey>.Value;
+            _keyCount = 0;
         }
 
         /// <summary>
@@ -174,17 +165,19 @@ namespace DefaultEcs.System
         /// To create the inner <see cref="EntityMultiMap{TKey}"/>, <see cref="WithAttribute"/> and <see cref="WithoutAttribute"/> attributes will be used.
         /// </summary>
         /// <param name="world">The <see cref="DefaultEcs.World"/> from which to get the <see cref="Entity"/> instances to process the update.</param>
-        /// <param name="useBuffer">Whether the entities should be copied before being processed.</param>
+        /// <param name="useBuffer">
+        /// Whether the entities should be copied before being processed. <para/>
+        /// Turning it off gets better results, but is NOT safe for disposing entities, or Set/Remove/Enable/Disable components that are part of inner EntitySet
+        /// </param>
         /// <exception cref="ArgumentNullException"><paramref name="world"/> is null.</exception>
-        protected AEntityMultiMapSystem(World world, bool useBuffer = false)
-            : this(world, DefaultFactory, useBuffer)
-        { }
+        protected AEntityMultiMapSystem(World world, bool useBuffer = true) : this(world, null)
+        {
+
+        }
 
         #endregion
 
         #region Methods
-
-        private static EntityMultiMap<TKey> DefaultFactory(object o, World w) => EntityRuleBuilderFactory.Create(o.GetType())(o, w).AsMultiMap(o as IEqualityComparer<TKey>);
 
         /// <summary>
         /// Performs a pre-update treatment.
