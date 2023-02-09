@@ -66,7 +66,34 @@ namespace DefaultEcs
         /// </summary>
         /// <returns>true if the <see cref="Entity"/> is alive; otherwise, false.</returns>
         [DebuggerBrowsable(DebuggerBrowsableState.Never)]
-        public bool IsAlive => WorldId != 0 && World.EntityInfos[EntityId].IsAlive(Version);
+        public bool IsAlive
+        {
+            get
+            {
+                if (WorldId == 0) return false;
+                if (World.EntityInfos.Length > EntityId)
+                {
+                    var entityInfo = World.EntityInfos[EntityId];
+                    return entityInfo.IsAlive(Version);
+                }
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Returns whether the current <see cref="Entity"/> version copy is alive. This method is faster and less safe version of <see cref="Entity.IsAlive"/> <para/>
+        /// Use it when know for sure that entity was valid previously (i.e. it was created from existing world and used before)
+        /// </summary>
+        /// <returns>true if the given <see cref="Entity"/> copy is latest(alive) version; otherwise, false.</returns>
+        [DebuggerBrowsable(DebuggerBrowsableState.Never)]
+        public readonly bool IsAliveVersion
+        {
+            get
+            {
+                var entityInfo = World.EntityInfos[EntityId];
+                return Version == entityInfo.Version;
+            }
+        }
 
         #endregion
 
@@ -288,18 +315,6 @@ namespace DefaultEcs
             {
                 previousPool.Set(EntityId, Get<T>());
             }
-        }
-
-        /// <summary>
-        /// Returns whether the current <see cref="Entity"/> version copy is alive. This method is faster and less safe version of <see cref="Entity.IsAlive"/> <para/>
-        /// Use it when know for sure that entity was valid previously (i.e. it was created from existing world and used before)
-        /// </summary>
-        /// <returns>true if the given <see cref="Entity"/> copy is latest(alive) version; otherwise, false.</returns>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public readonly bool IsAliveVersion()
-        {
-            var entityInfo = World.EntityInfos[EntityId];
-            return Version == entityInfo.Version;
         }
 
         /// <summary>
