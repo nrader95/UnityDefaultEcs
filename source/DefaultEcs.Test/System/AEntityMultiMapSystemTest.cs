@@ -392,7 +392,7 @@ namespace DefaultEcs.Test.System
         {
             IParallelRunner runner = Substitute.For<IParallelRunner>();
             runner.DegreeOfParallelism.Returns(4);
-            runner.When(m => m.Run(Arg.Any<IParallelRunnable>())).Throw<Exception>();
+            runner.When(m => m.Run(Arg.Any<IParallelRunnable>(), 0)).Throw<Exception>();
 
             using World world = new(4);
 

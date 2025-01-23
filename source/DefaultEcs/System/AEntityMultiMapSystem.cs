@@ -279,55 +279,72 @@ namespace DefaultEcs.System
         /// <param name="state">The state to use.</param>
         public void Update(TState state)
         {
-            if (IsEnabled)
+            if (!IsEnabled)
             {
-                Span<TKey> keys = GetKeys();
+                return;
+            }
 
-                if (keys.Length > 0)
+            Span<TKey> keys = GetKeys();
+            if (keys.Length == 0)
+            {
+                return;
+            }
+
+            PreUpdate(state);
+
+            _runnable.CurrentState = state;
+
+            foreach (ref readonly TKey key in keys)
+            {
+                if (MultiMap.TryGetEntities(key, out _runnable.Entities) && _runnable.Entities.Count > 0)
                 {
-                    PreUpdate(state);
+                    PreUpdate(state, key);
 
-                    _runnable.CurrentState = state;
-
-                    foreach (ref readonly TKey key in keys)
+                    if (_runner.DegreeOfParallelism > 1 && !_useBuffer)
                     {
-                        if (MultiMap.TryGetEntities(key, out _runnable.Entities) && _runnable.Entities.Count > 0)
+                        int threadsRequired = _runner.DegreeOfParallelism;
+                        if (_minEntityCountByRunnerIndex > 0)
                         {
-                            PreUpdate(state, key);
-
-                            if (_useBuffer)
+                            threadsRequired = _runnable.Entities.Count / _minEntityCountByRunnerIndex;
+                            if (_runnable.Entities.Count % _minEntityCountByRunnerIndex != 0)
                             {
-                                Entity[] buffer = ArrayPool<Entity>.Shared.Rent(_runnable.Entities.Count);
-                                _runnable.Entities.GetEntities().CopyTo(buffer);
-
-                                Update(state, key, new ReadOnlySpan<Entity>(buffer, 0, _runnable.Entities.Count));
-
-                                ArrayPool<Entity>.Shared.Return(buffer);
+                                threadsRequired++;
                             }
-                            else
-                            {
-                                _runnable.EntitiesPerIndex = _runnable.Entities.Count / _runner.DegreeOfParallelism;
+                            threadsRequired = threadsRequired > _runner.DegreeOfParallelism ? _runner.DegreeOfParallelism : threadsRequired;
+                        }
 
-                                if (_runnable.EntitiesPerIndex < _minEntityCountByRunnerIndex)
-                                {
-                                    Update(state, key, _runnable.Entities.GetEntities());
-                                }
-                                else
-                                {
-                                    _runnable.Key = key;
-                                    _runner.Run(_runnable);
-                                }
-                            }
-
-                            PostUpdate(state, key);
+                        if (threadsRequired > 1)
+                        {
+                            _runnable.EntitiesPerIndex = _runnable.Entities.Count / threadsRequired;
+                            _runnable.Key = key;
+                            _runner.Run(_runnable, threadsRequired);
+                        }
+                        else
+                        {
+                            Update(state, key, _runnable.Entities.GetEntities());
                         }
                     }
+                    else if (_useBuffer)
+                    {
+                        Entity[] buffer = ArrayPool<Entity>.Shared.Rent(_runnable.Entities.Count);
+                        _runnable.Entities.GetEntities().CopyTo(buffer);
 
-                    MultiMap.Complete();
+                        Update(state, key, new ReadOnlySpan<Entity>(buffer, 0, _runnable.Entities.Count));
 
-                    PostUpdate(state);
+                        ArrayPool<Entity>.Shared.Return(buffer);
+                    }
+                    else
+                    {
+                        Update(state, key, _runnable.Entities.GetEntities());
+                    }
+
+                    PostUpdate(state, key);
                 }
             }
+
+            MultiMap.Complete();
+
+            PostUpdate(state);
         }
 
         #endregion

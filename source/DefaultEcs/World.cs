@@ -429,7 +429,7 @@ namespace DefaultEcs
             mainAction.ThrowIfNull();
 
             _optimizer.PrepareForRun(mainAction);
-            runner.Run(_optimizer);
+            runner.Run(_optimizer, maxThreadCount: -1);
         }
 
         /// <summary>
@@ -442,7 +442,7 @@ namespace DefaultEcs
             runner.ThrowIfNull();
 
             _optimizer.PrepareForRun(null);
-            runner.Run(_optimizer);
+            runner.Run(_optimizer, maxThreadCount: -1);
         }
 
         /// <summary>

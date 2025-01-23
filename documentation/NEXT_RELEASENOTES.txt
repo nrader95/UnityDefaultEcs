@@ -6,6 +6,7 @@
 - renamed World.SubscribeComponentRemoved to World.SubscribeEntityComponentRemoved
 - renamed World.SubscribeComponentEnabled to World.SubscribeEntityComponentEnabled
 - renamed World.SubscribeComponentDisabled to World.SubscribeEntityComponentDisabled
+- IParallelRunner now requires thread-count to be specified
 
 ## New features
 

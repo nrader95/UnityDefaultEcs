@@ -127,7 +127,7 @@ namespace DefaultEcs.System
             {
                 _runnable.CurrentState = state;
                 Interlocked.Exchange(ref _runnable.LastIndex, -1);
-                _runner.Run(_runnable);
+                _runner.Run(_runnable, maxThreadCount: -1);
             }
         }
 

@@ -16,6 +16,7 @@ namespace DefaultEcs.Threading
         /// Runs the provided <see cref="IParallelRunnable"/>.
         /// </summary>
         /// <param name="runnable">The <see cref="IParallelRunnable"/> to run.</param>
-        void Run(IParallelRunnable runnable);
+        /// <param name="maxThreadCount">Maximum count of threads to use, main thread included. Zero or less is no restriction</param>
+        void Run(IParallelRunnable runnable, int maxThreadCount);
     }
 }

@@ -1,5 +1,8 @@
 ﻿using System;
+using System.Runtime.CompilerServices;
 using System.Threading;
+
+#pragma warning disable IDE0011 // Add braces to "if" statement
 
 namespace DefaultEcs.Threading
 {
@@ -12,16 +15,28 @@ namespace DefaultEcs.Threading
 
         internal static readonly DefaultParallelRunner Default = new(1);
 
-        private readonly object _syncObject = new object();
-        private readonly ManualResetEventSlim _workStartEvent;
-        private readonly Thread[] _threads;
+        private readonly object _syncObject = new();
+        private readonly ThreadWrapper[] _threads;
         private readonly bool[] _threadsWorkState;
 
         private volatile bool _isAlive;
         private volatile int _pendingTasks;
         private volatile IParallelRunnable _currentRunnable;
+        private int _maxThreadIndex;
 
         #endregion
+
+        private sealed class ThreadWrapper : IDisposable
+        {
+            public readonly Thread Thread;
+            public readonly ManualResetEvent WaitEvent;
+            public void Dispose() => WaitEvent.Dispose();
+            public ThreadWrapper(Thread thread)
+            {
+                WaitEvent = new ManualResetEvent(initialState: false);
+                Thread = thread;
+            }
+        }
 
         #region Initialisation
 
@@ -38,15 +53,16 @@ namespace DefaultEcs.Threading
 
             _isAlive = true;
             threadNamePrefix ??= "";
-            _workStartEvent = new ManualResetEventSlim(initialState: false);
-            _threads = new Thread[degreeOfParallelism - 1];
+            _threads = new ThreadWrapper[degreeOfParallelism - 1];
             _threadsWorkState = new bool[_threads.Length];
             for (int threadIndex = 0; _threads.Length > threadIndex; threadIndex++)
             {
-                _threads[threadIndex] = new Thread(new ParameterizedThreadStart(this.ThreadExecutionLoop));
-                Thread newThread = _threads[threadIndex];
-                newThread.Name = threadNamePrefix + $"{nameof(DefaultParallelRunner)} worker {threadIndex + 1}";
-                newThread.IsBackground = true;
+                Thread newThread = new(new ParameterizedThreadStart(ThreadExecutionLoop))
+                {
+                    Name = threadNamePrefix + $"{nameof(DefaultParallelRunner)} worker {threadIndex + 1}",
+                    IsBackground = true
+                };
+                _threads[threadIndex] = new ThreadWrapper(newThread);
                 newThread.Start(threadIndex);
             }
         }
@@ -58,15 +74,16 @@ namespace DefaultEcs.Threading
         private void ThreadExecutionLoop(object initObject)
         {
             int workerIndex = (int)initObject;
+            ManualResetEvent waitEvent = _threads[workerIndex].WaitEvent;
             while (_isAlive)
             {
-                _workStartEvent.Wait();
+                waitEvent.WaitOne();
                 if (!_isAlive) return;
                 if (!_threadsWorkState[workerIndex]) continue;
 
                 try
                 {
-                    _currentRunnable?.Run(workerIndex, _threads.Length);
+                    _currentRunnable?.Run(workerIndex, _maxThreadIndex);
                 }
                 finally
                 {
@@ -79,12 +96,30 @@ namespace DefaultEcs.Threading
             }
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private void SetThreadEvents(int maxThreadIndex)
+        {
+            for (int i = 0; maxThreadIndex > i; i++)
+            {
+                _threads[i].WaitEvent.Set();
+            }
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private void ResetThreadEvents(int maxThreadIndex)
+        {
+            for (int i = 0; maxThreadIndex > i; i++)
+            {
+                _threads[i].WaitEvent.Reset();
+            }
+        }
+
         private bool IsAllThreadsStopped()
         {
             bool result = true;
-            foreach (Thread thread in _threads)
+            foreach (ThreadWrapper threadWrapper in _threads)
             {
-                if (thread.ThreadState == ThreadState.Running)
+                if (threadWrapper.Thread.ThreadState == ThreadState.Running)
                 {
                     result = false;
                     break;
@@ -106,31 +141,41 @@ namespace DefaultEcs.Threading
         /// Runs the provided <see cref="IParallelRunnable"/>.
         /// </summary>
         /// <param name="runnable">The <see cref="IParallelRunnable"/> to run.</param>
-        public void Run(IParallelRunnable runnable)
+        /// <param name="maxThreadCount">Maximum count of threads to use, main thread included. Zero or less is no restriction</param>
+        /// <exception cref="InvalidOperationException"> Runner was already disposed </exception>
+        public void Run(IParallelRunnable runnable, int maxThreadCount)
         {
-            if (!_isAlive) throw new InvalidOperationException("Runner was already disposed!");
-            runnable.ThrowIfNull();
+            if (!_isAlive)
+                throw new InvalidOperationException("Runner was already disposed!");
 
+            runnable.ThrowIfNull();
             _currentRunnable = runnable;
-            if (_threads.Length > 0)
+
+            int threadsToUse = (0 >= maxThreadCount || maxThreadCount > DegreeOfParallelism) ? DegreeOfParallelism : maxThreadCount;
+            if (threadsToUse > 1)
             {
-                _pendingTasks = _threads.Length;
-                _threadsWorkState.Fill<bool>(true);
-                _workStartEvent.Set();
+                _maxThreadIndex = threadsToUse - 1;
+                for (int workerIndex = 0; _maxThreadIndex > workerIndex; workerIndex++)
+                {
+                    _threadsWorkState[workerIndex] = true;
+                }
+                _pendingTasks = _maxThreadIndex;
+
+                SetThreadEvents(_maxThreadIndex);
                 try
                 {
-                    _currentRunnable.Run(index: _threads.Length, maxIndex: _threads.Length);
+                    _currentRunnable.Run(index: _maxThreadIndex, maxIndex: _maxThreadIndex);
                 }
                 finally
                 {
                     SpinWait.SpinUntil(() => _pendingTasks == 0);
-                    _workStartEvent.Reset();
+                    ResetThreadEvents(_maxThreadIndex);
                     SpinWait.SpinUntil(IsAllThreadsStopped);
                 }
             }
             else
             {
-                _currentRunnable.Run(index: _threads.Length, maxIndex: _threads.Length);
+                _currentRunnable.Run(index: 0, maxIndex: 0);
             }
             _currentRunnable = null;
         }
@@ -144,12 +189,18 @@ namespace DefaultEcs.Threading
         /// </summary>
         public void Dispose()
         {
-            if (!_isAlive) return;
+            if (!_isAlive)
+                return;
+
             _isAlive = false;
             _currentRunnable = null;
-            _workStartEvent.Set();
+            SetThreadEvents(_threads.Length);
             Thread.Sleep(millisecondsTimeout: 1);
-            _workStartEvent.Dispose();
+
+            for (int i = 0; _threads.Length > i; i++)
+            {
+                _threads[i].Dispose();
+            }
         }
 
         #endregion

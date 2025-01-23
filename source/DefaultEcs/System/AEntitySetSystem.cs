@@ -207,7 +207,31 @@ namespace DefaultEcs.System
             {
                 PreUpdate(state);
 
-                if (_useBuffer)
+                if (_runner.DegreeOfParallelism > 1 && !_useBuffer)
+                {
+                    int threadsRequired = _runner.DegreeOfParallelism;
+                    if (_minEntityCountByRunnerIndex > 0)
+                    {
+                        threadsRequired = Set.Count / _minEntityCountByRunnerIndex;
+                        if (Set.Count % _minEntityCountByRunnerIndex != 0)
+                        {
+                            threadsRequired++;
+                        }
+                        threadsRequired = threadsRequired > _runner.DegreeOfParallelism ? _runner.DegreeOfParallelism : threadsRequired;
+                    }
+
+                    if (threadsRequired > 1)
+                    {
+                        _runnable.CurrentState = state;
+                        _runnable.EntitiesPerIndex = Set.Count / threadsRequired;
+                        _runner.Run(_runnable, threadsRequired);
+                    }
+                    else
+                    {
+                        Update(state, Set.GetEntities());
+                    }
+                }
+                else if (_useBuffer)
                 {
                     Entity[] buffer = ArrayPool<Entity>.Shared.Rent(Set.Count);
                     Set.GetEntities().CopyTo(buffer);
@@ -218,17 +242,7 @@ namespace DefaultEcs.System
                 }
                 else
                 {
-                    _runnable.EntitiesPerIndex = Set.Count / _runner.DegreeOfParallelism;
-
-                    if (_runnable.EntitiesPerIndex < _minEntityCountByRunnerIndex)
-                    {
-                        Update(state, Set.GetEntities());
-                    }
-                    else
-                    {
-                        _runnable.CurrentState = state;
-                        _runner.Run(_runnable);
-                    }
+                    Update(state, Set.GetEntities());
                 }
 
                 Set.Complete();

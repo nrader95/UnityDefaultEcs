@@ -153,16 +153,33 @@ namespace DefaultEcs.System
             {
                 PreUpdate(state);
 
-                _runnable.ComponentsPerIndex = _components.Count / _runner.DegreeOfParallelism;
-
-                if (_runnable.ComponentsPerIndex < _minComponentCountByRunnerIndex)
+                if (_runner.DegreeOfParallelism > 1)
                 {
-                    Update(state, _components.AsSpan());
+                    int threadsRequired = _runner.DegreeOfParallelism;
+                    if (_minComponentCountByRunnerIndex > 0)
+                    {
+                        threadsRequired = _components.Count / _minComponentCountByRunnerIndex;
+                        if (_components.Count % _minComponentCountByRunnerIndex != 0)
+                        {
+                            threadsRequired++;
+                        }
+                        threadsRequired = threadsRequired > _runner.DegreeOfParallelism ? _runner.DegreeOfParallelism : threadsRequired;
+                    }
+
+                    if (threadsRequired > 1)
+                    {
+                        _runnable.CurrentState = state;
+                        _runnable.ComponentsPerIndex = _components.Count / threadsRequired;
+                        _runner.Run(_runnable, threadsRequired);
+                    }
+                    else
+                    {
+                        Update(state, _components.AsSpan());
+                    }
                 }
                 else
                 {
-                    _runnable.CurrentState = state;
-                    _runner.Run(_runnable);
+                    Update(state, _components.AsSpan());
                 }
 
                 PostUpdate(state);
