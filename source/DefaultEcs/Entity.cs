@@ -476,7 +476,7 @@ namespace DefaultEcs
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Dispose()
         {
-            if (WorldId == 0) return;
+            if (WorldId == 0 || this.World == null) return;
             if (!this.IsAliveVersion) return;
             Publisher.Publish(WorldId, new EntityDisposingMessage(EntityId));
             Publisher.Publish(WorldId, new EntityDisposedMessage(EntityId));
