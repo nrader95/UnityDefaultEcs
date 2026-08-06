@@ -2,6 +2,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using DefaultEcs.Internal;
@@ -774,6 +775,12 @@ namespace DefaultEcs
             if (!_isDisposed)
             {
                 _isDisposed = true;
+
+                // if some components were classes, not disposing each entity may cause memory leaks otherwise
+                foreach (Entity entity in this.ToArray())
+                {
+                    entity.Dispose();
+                }
 
                 Publish(new WorldDisposedMessage(WorldId));
                 Publisher.Publish(0, new WorldDisposedMessage(WorldId));
