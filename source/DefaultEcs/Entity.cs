@@ -78,6 +78,7 @@ namespace DefaultEcs
             get
             {
                 if (WorldId == 0) return false;
+                if (this.World == null) return false;
                 if (World.EntityInfos.Length > EntityId)
                 {
                     var entityInfo = World.EntityInfos[EntityId];
